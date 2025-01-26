@@ -25,12 +25,7 @@ Source = "https://github.com/daizutabi/multiprogress"
 Issues = "https://github.com/daizutabi/multiprogress/issues"
 
 [tool.uv]
-dev-dependencies = [
-    "pytest-clarity>=1",
-    "pytest-cov>=6.0",
-    "pytest-randomly>=3.16",
-    "pytest-xdist>=3.6",
-]
+dev-dependencies = ["pytest-cov>=6.0"]
 
 [tool.hatch.build.targets.sdist]
 exclude = ["/.github", "/docs"]
@@ -39,13 +34,7 @@ exclude = ["/.github", "/docs"]
 packages = ["src/multiprogress"]
 
 [tool.pytest.ini_options]
-addopts = [
-    "--doctest-modules",
-    "--cov=multiprogress",
-    "--cov-report=lcov:lcov.info",
-]
-doctest_optionflags = ["NORMALIZE_WHITESPACE", "IGNORE_EXCEPTION_DETAIL"]
-filterwarnings = []
+addopts = ["--cov=multiprogress", "--cov-report=lcov:lcov.info"]
 
 [tool.coverage.run]
 disable_warnings = ["module-not-measured"]
@@ -61,28 +50,7 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["ALL"]
 unfixable = ["F401"]
-ignore = [
-    "ANN002",
-    "ANN003",
-    "ANN401",
-    "ARG001",
-    "ARG002",
-    "D",
-    "D105",
-    "D107",
-    "D203",
-    "D213",
-    "EM101",
-    "ERA001",
-    "FBT001",
-    "FBT002",
-    "PD901",
-    "PERF401",
-    "PGH003",
-    "PLR2004",
-    "SIM102",
-    "TRY003",
-]
+ignore = ["ANN003", "D", "PGH003"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ANN", "ARG", "D", "PLR", "RUF", "S"]
+"tests/*" = ["ANN", "FBT", "S"]
