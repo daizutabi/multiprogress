@@ -17,7 +17,7 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
 ]
 requires-python = ">=3.10"
-dependencies = ["joblib", "rich"]
+dependencies = ["joblib", "rich", "watchfiles"]
 
 [project.urls]
 Documentation = "https://github.com/daizutabi/multiprogress"
