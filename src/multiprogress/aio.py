@@ -7,6 +7,8 @@ from typing import TYPE_CHECKING
 import watchfiles
 from watchfiles import Change
 
+from multiprogress.utils import get_default_progress
+
 if TYPE_CHECKING:
     from asyncio import Event
     from collections.abc import Callable, Coroutine
@@ -179,14 +181,3 @@ async def progress(
         p.update(task_id, total=1, completed=1, refresh=True)
 
         return returncode
-
-
-def get_default_progress(**kwargs) -> Progress:
-    from rich.progress import Progress, SpinnerColumn, TimeElapsedColumn
-
-    return Progress(
-        SpinnerColumn(),
-        *Progress.get_default_columns(),
-        TimeElapsedColumn(),
-        **kwargs,
-    )
