@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 import time
 
+from joblib import Parallel, delayed
 from rich.progress import (
     MofNCompleteColumn,
     Progress,
@@ -18,8 +19,6 @@ def test_parallel_progress(**kwargs):
         time.sleep(1)
         return f"result: {x}"
 
-    it = range(12)
-
     columns = [
         SpinnerColumn(),
         *Progress.get_default_columns(),
@@ -27,7 +26,9 @@ def test_parallel_progress(**kwargs):
         TimeElapsedColumn(),
     ]
 
-    parallel_progress(func, it, *columns, n_jobs=-1, **kwargs)
+    it = list(range(24))
+    with parallel_progress(*columns, total=len(it), **kwargs):
+        Parallel(n_jobs=-1)(delayed(func)(x) for x in it)
 
 
 def task(total):
@@ -58,8 +59,9 @@ def test_multi_tasks_progress(total: bool, **kwargs):
 
 
 if __name__ == "__main__":
-    test_parallel_progress(description="parallel")
+    test_parallel_progress()
     test_parallel_progress(transient=True)
+
     test_multi_tasks_progress(total=False)
     test_multi_tasks_progress(total=True, transient=False)
     test_multi_tasks_progress(total=False, transient=True)

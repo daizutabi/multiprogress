@@ -13,62 +13,40 @@ import joblib
 from rich.progress import Progress
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable, Iterator
+    from collections.abc import Iterable, Iterator
 
     from joblib.parallel import Parallel
-    from rich.progress import ProgressColumn
+    from rich.progress import ProgressColumn, TaskID
 
 
 # https://github.com/jonghwanhyeon/joblib-progress/blob/main/joblib_progress/__init__.py
 @contextmanager
-def JoblibProgress(  # noqa: N802
-    *columns: ProgressColumn | str,
-    description: str | None = None,
-    total: int | None = None,
-    **kwargs,
+def joblib_progress(
+    progress: Progress,
+    task_id: TaskID,
 ) -> Iterator[Progress]:
     """Context manager for tracking progress using Joblib with Rich's Progress bar.
 
     Args:
-        *columns (ProgressColumn | str): Columns to display in the progress bar.
-        description (str | None, optional): A description for the progress task.
-            Defaults to None.
-        total (int | None, optional): The total number of tasks. If None, it will
-            be determined automatically.
-        **kwargs: Additional keyword arguments passed to the Progress instance.
+        progress (Progress): A Progress instance for managing the progress bar.
+        task_id (TaskID): A task ID to update.
 
     Yields:
         Progress: A Progress instance for managing the progress bar.
 
-    Example:
-        ```python
-        with JoblibProgress("task", total=100) as progress:
-            # Your parallel processing code here
-        ```
-
     """
-    if not columns:
-        columns = Progress.get_default_columns()
-
-    progress = Progress(*columns, **kwargs)
-
-    if description is None:
-        description = "Processing..."
-
-    task_id = progress.add_task(description, total=total)
     print_progress = joblib.parallel.Parallel.print_progress
 
     def update_progress(self: joblib.parallel.Parallel) -> None:
         progress.update(task_id, completed=self.n_completed_tasks, refresh=True)
         return print_progress(self)
 
+    joblib.parallel.Parallel.print_progress = update_progress
+
     try:
-        joblib.parallel.Parallel.print_progress = update_progress
-        progress.start()
         yield progress
 
     finally:
-        progress.stop()
         joblib.parallel.Parallel.print_progress = print_progress
 
 
@@ -76,28 +54,20 @@ T = TypeVar("T")
 U = TypeVar("U")
 
 
+@contextmanager
 def parallel_progress(
-    func: Callable[[T], U],
-    iterable: Iterable[T],
     *columns: ProgressColumn | str,
-    n_jobs: int = -1,
-    description: str | None = None,
-    parallel: Parallel | None = None,
+    description: str = "",
+    total: int | None = None,
     **kwargs,
-) -> list[U]:
-    """Execute a function in parallel over an iterable with progress tracking.
+) -> Iterator[None]:
+    """Context manager for parallel task execution with progress.
 
     Args:
-        func (Callable[[T], U]): The function to execute on each item in the
-            iterable.
-        iterable (Iterable[T]): An iterable of items to process.
-        *columns (ProgressColumn | str): Additional columns to display in the
-            progress bar.
-        n_jobs (int, optional): The number of jobs to run in parallel.
-            Defaults to -1 (all processors).
-        description (str | None, optional): A description for the progress bar.
-            Defaults to None.
-        parallel (Parallel | None, optional): A Parallel instance to use.
+        *columns (ProgressColumn | str): Columns to display in the progress bar.
+        description (str, optional): A description for the progress bar.
+            Defaults to "".
+        total (int | None, optional): The total number of items to process.
             Defaults to None.
         **kwargs: Additional keyword arguments passed to the Progress instance.
 
@@ -106,14 +76,11 @@ def parallel_progress(
         the iterable.
 
     """
-    iterable = list(iterable)
-    total = len(iterable)
+    with Progress(*columns, **kwargs) as progress:
+        task_id = progress.add_task(description, total=total)
 
-    parallel = parallel or joblib.Parallel(n_jobs=n_jobs)
-
-    with JoblibProgress(*columns, description=description, total=total, **kwargs):
-        it = (joblib.delayed(func)(x) for x in iterable)
-        return parallel(it)  # type: ignore
+        with joblib_progress(progress, task_id):
+            yield
 
 
 def multi_tasks_progress(  # noqa: PLR0913
@@ -166,7 +133,7 @@ def multi_tasks_progress(  # noqa: PLR0913
         total = {}
         completed = {}
 
-        def func(i: int) -> None:
+        def update(i: int) -> None:
             completed[i] = 0
             total[i] = None
             progress.start_task(task_ids[i])
@@ -190,4 +157,4 @@ def multi_tasks_progress(  # noqa: PLR0913
                 progress.remove_task(task_ids[i])
 
         parallel = parallel or joblib.Parallel(n_jobs=n_jobs, prefer="threads")
-        parallel(joblib.delayed(func)(i) for i in range(len(iterables)))
+        parallel(joblib.delayed(update)(i) for i in range(len(iterables)))
