@@ -5,9 +5,8 @@ from asyncio.subprocess import PIPE
 from typing import TYPE_CHECKING
 
 import watchfiles
+from rich.progress import Progress
 from watchfiles import Change
-
-from multiprogress.utils import get_default_progress
 
 if TYPE_CHECKING:
     from asyncio import Event
@@ -15,16 +14,28 @@ if TYPE_CHECKING:
     from pathlib import Path
     from typing import Any
 
-    from rich.progress import Progress
+    from rich.progress import ProgressColumn
 
 
 def run(
     args: list[str],
     path: Path | str,
     on_changed: Callable[[set[tuple[Change, str]]], tuple[float, float]],
+    *columns: ProgressColumn | str,
+    progress: Progress | None = None,
+    description: str = "",
     **kwargs,
 ) -> int:
-    coro = arun(args, path, on_changed, **kwargs)
+    coro = arun(
+        args,
+        path,
+        on_changed,
+        *columns,
+        progress=progress,
+        description=description,
+        **kwargs,
+    )
+
     return asyncio.run(coro)
 
 
@@ -32,6 +43,9 @@ async def arun(
     args: list[str],
     path: Path | str,
     on_changed: Callable[[set[tuple[Change, str]]], tuple[float, float]],
+    *columns: ProgressColumn | str,
+    progress: Progress | None = None,
+    description: str = "",
     **kwargs,
 ) -> int:
     async def coro(update: Callable[[float, float], None]) -> int:
@@ -39,15 +53,22 @@ async def arun(
             total, completed = on_changed(changes)
             update(total, completed)
 
-        return await execute_watch(args, path, _on_changed)
+        return await execute_watch(args, path, on_changed=_on_changed, **kwargs)
 
-    return await progress(coro, **kwargs)
+    return await async_progress(
+        coro,
+        *columns,
+        progress=progress,
+        description=description,
+        **kwargs,
+    )
 
 
 async def execute_watch(
     args: list[str],
-    path: Path | str,
+    *paths: Path | str,
     on_changed: Callable[[set[tuple[Change, str]]], None],
+    **kwargs,
 ) -> int:
     """Asynchronously execute a command and monitor the output directory.
 
@@ -57,10 +78,12 @@ async def execute_watch(
 
     Args:
         args (list[str]): The command-line arguments to run the command.
-        path (Path): The path to monitor for file changes.
+        paths (Path): Filesystem paths to watch.
         on_changed (Callable[[set[tuple[Change, str]]], None]): A callback function
             that takes a set of changes. Each change is represented by a tuple
             containing the type of change and the path to the changed file.
+        **kwargs: Additional keyword arguments to pass to the watchfiles.awatch
+            function.
 
     Returns:
         int: The return code of the process. A return code of 0 indicates
@@ -69,7 +92,8 @@ async def execute_watch(
     stop_event = asyncio.Event()
 
     run_task = asyncio.create_task(execute(args, stop_event))
-    watch_task = asyncio.create_task(watch(path, stop_event, on_changed))
+    watch_coro = watch(*paths, stop_event=stop_event, on_changed=on_changed, **kwargs)
+    watch_task = asyncio.create_task(watch_coro)
 
     try:
         await asyncio.gather(run_task, watch_task)
@@ -112,7 +136,7 @@ async def execute(args: list[str], stop_event: Event) -> int:
 
 
 async def watch(
-    path: Path | str,
+    *paths: Path | str,
     stop_event: Event,
     on_changed: Callable[[set[tuple[Change, str]]], None],
     **kwargs,
@@ -124,7 +148,7 @@ async def watch(
     with the set of changes. The monitoring continues until the stop_event is set.
 
     Args:
-        path (Path): The directory path to monitor for file changes.
+        paths (Path): Filesystem paths to watch.
         stop_event (Event): An event that, when set, signals the coroutine
             to stop monitoring and terminate.
         callback (Callable[[set[tuple[Change, str]]], None]): A callback function
@@ -134,17 +158,17 @@ async def watch(
         **kwargs: Additional keyword arguments to pass to the watchfiles.awatch
             function.
     """
-    ait = watchfiles.awatch(path, stop_event=stop_event, **kwargs)
+    ait = watchfiles.awatch(*paths, stop_event=stop_event, **kwargs)
 
     async for changes in ait:
         on_changed(changes)
 
 
-async def progress(
+async def async_progress(
     func: Callable[[Callable[[float, float], None]], Coroutine[Any, Any, int]],
-    description: str = "",
-    *,
+    *columns: ProgressColumn | str,
     progress: Progress | None = None,
+    description: str = "",
     **kwargs,
 ) -> int:
     """Execute a function with progress monitoring and display updates.
@@ -168,16 +192,30 @@ async def progress(
         success, while any non-zero value indicates an error.
     """
     if progress is None:
-        progress = get_default_progress(**kwargs)
+        if not columns:
+            columns = Progress.get_default_columns()
+        progress = Progress(*columns, **kwargs)
+        is_created = True
+    else:
+        is_created = False
 
-    with progress as p:
-        task_id = p.add_task(description, total=None)
+    task_id = progress.add_task(description, total=None)
 
-        def update(total: float, completed: float) -> None:
-            p.update(task_id, total=total, completed=completed, refresh=True)
+    last = [0.0]
 
+    def update(total: float, completed: float) -> None:
+        last[0] = total
+        progress.update(task_id, total=total, completed=completed, refresh=True)
+
+    if is_created:
+        progress.start()
+
+    try:
         returncode = await func(update)
-
-        p.update(task_id, total=1, completed=1, refresh=True)
-
+        if last[0]:
+            progress.update(task_id, total=last[0], completed=last[0], refresh=True)
         return returncode
+
+    finally:
+        if is_created:
+            progress.stop()
