@@ -5,14 +5,14 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING
 
-from rich.console import Console, RenderableType
-from rich.progress import Progress
+from rich.console import Console
 from rich.table import Table
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable, Sequence
+    from collections.abc import Sequence
     from typing import Any
 
+    from rich.console import RenderableType
 
 console = Console()
 
@@ -92,16 +92,3 @@ def create_table(renderables: Sequence[RenderableType], padding: int = 2) -> Tab
         table.add_row(*renderables[i : i + ncols])
 
     return table
-
-
-class ProgressTable(Progress):
-    """A progress bar that displays a table of progress bars."""
-
-    def get_renderables(self) -> Iterable[RenderableType]:
-        """Get a number of renderables for the progress display."""
-        tables = [self.make_tasks_table([task]) for task in self.tasks[1:]]
-
-        if tables:
-            yield create_table(tables)
-
-        yield self.make_tasks_table(self.tasks[:1])

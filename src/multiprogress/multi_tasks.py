@@ -1,81 +1,59 @@
-"""Context managers and functions for parallel task execution with progress.
-
-Provide context managers and functions to facilitate the execution
-of tasks in parallel while displaying progress updates.
-"""
-
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-import joblib
-from rich.progress import Progress
+from joblib.parallel import Parallel, delayed
+from rich.progress import Progress as Super
 
-from .progress_table import ProgressTable
+from .table import create_table
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from joblib.parallel import Parallel
-    from rich.progress import ProgressColumn
+    from rich.console import RenderableType
 
 
-def multi_tasks_progress(  # noqa: PLR0913
-    iterables: Iterable[Iterable[int | tuple[int, int]]],
-    *columns: ProgressColumn | str,
-    n_jobs: int = -1,
-    description: str = "#{:0>3}",
-    main_description: str = "main",
-    transient: bool | None = None,
-    parallel: Parallel | None = None,
-    use_table: bool = False,
-    **kwargs,
-) -> None:
-    """Render auto-updating progress bars for multiple tasks concurrently.
+class Progress(Super):
+    """A progress bar for multiple tasks."""
 
-    Args:
-        iterables (Iterable[Iterable[int | tuple[int, int]]]): A collection of
-            iterables, each representing a task. Each iterable can yield
-            integers (completed) or tuples of integers (completed, total).
-        *columns (ProgressColumn | str): Additional columns to display in the
-            progress bars.
-        n_jobs (int, optional): Number of jobs to run in parallel. Defaults to
-            -1, which means using all processors.
-        description (str, optional): Format string for describing tasks. Defaults to
-            "#{:0>3}".
-        main_description (str, optional): Description for the main task.
-            Defaults to "main".
-        transient (bool | None, optional): Whether to remove the progress bar
-            after completion. Defaults to None.
-        parallel (Parallel | None, optional): A Parallel instance to use.
-            Defaults to None.
-        use_table (bool, optional): Whether to use a table to display the
-            progress bars. Defaults to False.
-        **kwargs: Additional keyword arguments passed to the Progress instance.
+    def start_tasks(
+        self,
+        iterables: Iterable[Iterable[int | tuple[int, int]]],
+        parallel: Parallel | None = None,
+        n_jobs: int = -1,
+    ) -> None:
+        """Start multiple tasks.
 
-    Returns:
-        None
+        Args:
+            iterables (Iterable[Iterable[int | tuple[int, int]]]): A collection
+                of iterables, each representing a task. Each iterable can yield
+                integers (completed) or tuples of integers (total, completed).
+            parallel (Parallel | None, optional): A Parallel instance to use.
+                Defaults to None.
+            n_jobs (int, optional): Number of jobs to run in parallel. Defaults
+                to -1, which means using all processors.
 
-    """
-    if not columns:
-        columns = Progress.get_default_columns()
+        Returns:
+            None
 
-    cls = ProgressTable if use_table else Progress
-
-    with cls(*columns, transient=transient or False, **kwargs) as progress:
+        """
         iterables = list(iterables)
         n = len(iterables)
-        task_main = progress.add_task(main_description, total=n)
+
+        if self.task_ids:
+            task_main = self.task_ids[-1]
+        else:
+            task_main = None
 
         task_ids = [
-            progress.add_task(description.format(i), start=False, total=None)
-            for i in range(n)
+            self.add_task(f"#{i:0>{len(str(n + 1))}}", start=False, total=None)
+            for i in range(1, n + 1)
         ]
 
         def update(i: int) -> None:
             task_id = task_ids[i]
 
-            progress.start_task(task_id)
+            self.start_task(task_id)
 
             total = completed = None
 
@@ -85,13 +63,32 @@ def multi_tasks_progress(  # noqa: PLR0913
                 else:
                     total, completed = None, index
 
-                progress.update(task_id, total=total, completed=completed)
+                self.update(task_id, total=total, completed=completed)
 
-            progress.update(task_id, total=total, completed=total, refresh=True)
-            progress.update(task_main, advance=1, refresh=True)
+            self.update(task_id, total=total, completed=total, refresh=True)
 
-            if transient is not False:
-                progress.remove_task(task_id)
+            if task_main is not None:
+                self.update(task_main, advance=1, refresh=True)
 
-        parallel = parallel or joblib.Parallel(n_jobs=n_jobs, prefer="threads")
-        parallel(joblib.delayed(update)(i) for i in range(n))
+            if self.live.transient:
+                self.remove_task(task_id)
+
+        parallel = parallel or Parallel(n_jobs=n_jobs, backend="threading")
+        parallel(delayed(update)(i) for i in range(n))
+
+
+class ProgressTable(Progress):
+    """A progress bar that displays a table of progress bars."""
+
+    def get_renderables(self) -> Iterable[RenderableType]:
+        """Get a number of renderables for the progress display."""
+        tasks = [task for task in self.tasks if not task.description.startswith("#")]
+
+        if tasks:
+            yield self.make_tasks_table(tasks)
+
+        tasks = [task for task in self.tasks if task.description.startswith("#")]
+        tables = [self.make_tasks_table([task]) for task in tasks]
+
+        if tables:
+            yield create_table(tables)
