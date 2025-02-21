@@ -1,78 +1,46 @@
-"""Context managers and functions for parallel task execution with progress.
-
-Provide context managers and functions to facilitate the execution
-of tasks in parallel while displaying progress updates.
-"""
+"""Provide a progress bar for parallel task execution."""
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 import joblib
-from rich.progress import Progress
+from rich.progress import Progress as Super
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Callable
 
-    from rich.progress import ProgressColumn, TaskID
+    from joblib.parallel import Parallel
 
 
 # https://github.com/jonghwanhyeon/joblib-progress/blob/main/joblib_progress/__init__.py
-@contextmanager
-def joblib_progress(
-    progress: Progress,
-    task_id: TaskID,
-) -> Iterator[Progress]:
-    """Context manager for tracking progress using Joblib with Rich's Progress bar.
+class Progress(Super):
+    _print_progress: Callable[[Parallel], None] | None = None
 
-    Args:
-        progress (Progress): A Progress instance for managing the progress bar.
-        task_id (TaskID): A task ID to update.
+    def start(self) -> None:
+        """Start the progress display."""
+        super().start()
 
-    Yields:
-        Progress: A Progress instance for managing the progress bar.
+        self._print_progress = joblib.parallel.Parallel.print_progress
 
-    """
-    print_progress = joblib.parallel.Parallel.print_progress
+        progress = self
 
-    def update_progress(self: joblib.parallel.Parallel) -> None:
-        progress.update(task_id, completed=self.n_completed_tasks, refresh=True)
-        return print_progress(self)
+        def update_progress(self: joblib.parallel.Parallel) -> None:
+            if not progress.task_ids:
+                task_id = progress.add_task("", total=None)
+            else:
+                task_id = progress.task_ids[0]
 
-    joblib.parallel.Parallel.print_progress = update_progress
+            progress.update(task_id, completed=self.n_completed_tasks, refresh=True)
 
-    try:
-        yield progress
+            if progress._print_progress:
+                progress._print_progress(self)
 
-    finally:
-        joblib.parallel.Parallel.print_progress = print_progress
+        joblib.parallel.Parallel.print_progress = update_progress
 
+    def stop(self) -> None:
+        """Stop the progress display."""
+        if self._print_progress:
+            joblib.parallel.Parallel.print_progress = self._print_progress  # type: ignore
 
-@contextmanager
-def parallel_progress(
-    *columns: ProgressColumn | str,
-    description: str = "",
-    total: int | None = None,
-    **kwargs,
-) -> Iterator[None]:
-    """Context manager for parallel task execution with progress.
-
-    Args:
-        *columns (ProgressColumn | str): Columns to display in the progress bar.
-        description (str, optional): A description for the progress bar.
-            Defaults to "".
-        total (int | None, optional): The total number of items to process.
-            Defaults to None.
-        **kwargs: Additional keyword arguments passed to the Progress instance.
-
-    Returns:
-        list[U]: A list of results from applying the function to each item in
-        the iterable.
-
-    """
-    with Progress(*columns, **kwargs) as progress:
-        task_id = progress.add_task(description, total=total)
-
-        with joblib_progress(progress, task_id):
-            yield
+        super().stop()
