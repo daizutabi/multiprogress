@@ -9,15 +9,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import joblib
-from rich.progress import Progress
+from rich.progress import Progress, TaskID
 
 from .progress_table import ProgressTable
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
+    from typing import Any
 
     from joblib.parallel import Parallel
-    from rich.progress import ProgressColumn
+    from rich.progress import ProgressColumn, TaskID
 
 
 def multi_tasks_progress(  # noqa: PLR0913
@@ -94,4 +95,51 @@ def multi_tasks_progress(  # noqa: PLR0913
                 progress.remove_task(task_id)
 
         parallel = parallel or joblib.Parallel(n_jobs=n_jobs, prefer="threads")
+        parallel(joblib.delayed(update)(i) for i in range(n))
+
+
+class MultiTasksProgress(Progress):
+    """A progress bar for multiple tasks."""
+
+    def start_tasks(
+        self,
+        parallel: Parallel,
+        iterables: Iterable[Iterable[int | tuple[int, int]]],
+    ) -> None:
+        iterables = list(iterables)
+        n = len(iterables)
+
+        if self.task_ids:
+            task_main = self.task_ids[-1]
+        else:
+            task_main = None
+
+        task_ids = [
+            self.add_task(f"#{i:0>{len(str(n))}}", start=False, total=None)
+            for i in range(n)
+        ]
+
+        def update(i: int) -> None:
+            task_id = task_ids[i]
+
+            self.start_task(task_id)
+
+            total = completed = None
+
+            for index in iterables[i]:
+                if isinstance(index, tuple):
+                    total, completed = index
+                else:
+                    total, completed = None, index
+
+                self.update(task_id, total=total, completed=completed)
+
+            self.update(task_id, total=total, completed=total, refresh=True)
+
+            if task_main is not None:
+                self.update(task_main, advance=1, refresh=True)
+
+            if self.live.transient is not False:
+                self.remove_task(task_id)
+
         parallel(joblib.delayed(update)(i) for i in range(n))
