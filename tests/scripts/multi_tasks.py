@@ -3,14 +3,9 @@ from __future__ import annotations
 import random
 import time
 
-from rich.progress import (
-    MofNCompleteColumn,
-    Progress,
-    SpinnerColumn,
-    TimeElapsedColumn,
-)
+from rich.progress import MofNCompleteColumn, SpinnerColumn, TimeElapsedColumn
 
-from multiprogress import multi_tasks_progress
+from multiprogress.multi_tasks import Progress, ProgressTable
 
 
 def task(total):
@@ -22,11 +17,8 @@ def task(total):
         time.sleep(random.random() / 30)
 
 
-def test_multi_tasks_progress(total: bool, n: int = 4, **kwargs):
-    tasks = (task(random.randint(50, 200)) for _ in range(n))
-    if total:
-        tasks = (task(None), *list(tasks)[:-2], task(None))
-
+def test_multi_tasks_progress(n: int = 4, use_table: bool = False, **kwargs):
+    tasks = (task(random.randint(300, 500) if k else None) for k in range(n))
     columns = [
         SpinnerColumn(),
         *Progress.get_default_columns(),
@@ -34,13 +26,14 @@ def test_multi_tasks_progress(total: bool, n: int = 4, **kwargs):
         TimeElapsedColumn(),
     ]
 
-    if total:
-        kwargs["main_description"] = "unknown"
+    cls = ProgressTable if use_table else Progress
 
-    multi_tasks_progress(tasks, *columns, n_jobs=4, **kwargs)
+    with cls(*columns, **kwargs) as progress:
+        if cls is ProgressTable:
+            progress.add_task("main", total=n)
+        progress.start_tasks(tasks)
 
 
 if __name__ == "__main__":
-    test_multi_tasks_progress(total=False)
-    test_multi_tasks_progress(total=True, transient=False)
-    test_multi_tasks_progress(total=False, transient=True)
+    test_multi_tasks_progress()
+    test_multi_tasks_progress(transient=True)
