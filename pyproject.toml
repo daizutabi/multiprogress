@@ -55,3 +55,6 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ANN", "FBT", "S"]
+
+[tool.pyright]
+include = ["src", "tests"]
