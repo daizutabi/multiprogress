@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "multiprogress"
-version = "0.3.0"
+version = "0.3.1"
 description = "A Python package for displaying progress of multiple tasks."
 readme = "README.md"
 license = { file = "LICENSE" }
