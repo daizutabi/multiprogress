@@ -15,6 +15,8 @@ if TYPE_CHECKING:
 
 
 def on_changed(changes: set[tuple[Change, str]]) -> tuple[float, float]:
+    total = completed = 0
+
     for _, path in changes:
         text = Path(path).read_text()
         total, completed = text.split(",")
