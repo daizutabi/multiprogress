@@ -9,7 +9,7 @@ from multiprogress.multi_tasks import Progress, ProgressTable
 
 
 def task(total):
-    for i in range(total or 90):
+    for i in range(total or random.randint(300, 500)):
         if total is None:
             yield i
         else:
