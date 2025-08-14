@@ -27,6 +27,7 @@ Issues = "https://github.com/daizutabi/multiprogress/issues"
 
 [dependency-groups]
 dev = ["pytest-cov>=6.0"]
+notebook = ["ipykernel", "ipywidgets", "marimo"]
 
 [tool.pytest.ini_options]
 addopts = ["--cov=multiprogress", "--cov-report=lcov:lcov.info"]
@@ -50,12 +51,15 @@ ignore = [
   "FBT001",
   "FBT002",
   "PGH003",
+  "PLR0913",
   "SIM108",
   "SLF001",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["ANN", "FBT", "PT028", "S"]
+"notebooks/*" = ["ANN", "FBT", "PT028", "S"]
+"notebooks/marimo/*" = ["ALL"]
 
 [tool.pyright]
 include = ["src", "tests"]
