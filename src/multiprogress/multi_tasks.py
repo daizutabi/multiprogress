@@ -12,6 +12,9 @@ if TYPE_CHECKING:
 
     from rich.console import RenderableType
 
+# pyright: reportMissingTypeStubs=false
+# pyright: reportUnknownVariableType=false
+
 
 class Progress(Super):
     """A progress bar for multiple tasks."""
