@@ -33,7 +33,7 @@ jobs:
       - name: Install uv
         run: pip install uv
       - name: Install the project
-        run: uv sync
+        run: uv sync --all-groups
       - name: Ruff check
         run: uvx ruff check
       - name: Basedpyright check
