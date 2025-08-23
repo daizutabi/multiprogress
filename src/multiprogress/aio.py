@@ -24,7 +24,7 @@ def run(
     *columns: ProgressColumn | str,
     progress: Progress | None = None,
     description: str = "",
-    **kwargs,
+    **kwargs: Any,
 ) -> int:
     coro = arun(
         args,
@@ -46,7 +46,7 @@ async def arun(
     *columns: ProgressColumn | str,
     progress: Progress | None = None,
     description: str = "",
-    **kwargs,
+    **kwargs: Any,
 ) -> int:
     async def coro(update: Callable[[float, float], None]) -> int:
         def _on_changed(changes: set[tuple[Change, str]]) -> None:
@@ -68,7 +68,7 @@ async def execute_watch(
     args: list[str],
     *paths: Path | str,
     on_changed: Callable[[set[tuple[Change, str]]], None],
-    **kwargs,
+    **kwargs: Any,
 ) -> int:
     """Asynchronously execute a command and monitor the output directory.
 
@@ -139,7 +139,7 @@ async def watch(
     *paths: Path | str,
     stop_event: Event,
     on_changed: Callable[[set[tuple[Change, str]]], None],
-    **kwargs,
+    **kwargs: Any,
 ) -> None:
     """Asynchronously monitor a directory for file changes and execute a callback.
 
@@ -158,7 +158,7 @@ async def watch(
         **kwargs: Additional keyword arguments to pass to the watchfiles.awatch
             function.
     """
-    ait = watchfiles.awatch(*paths, stop_event=stop_event, **kwargs)
+    ait = watchfiles.awatch(*paths, stop_event=stop_event, **kwargs)  # pyright: ignore[reportUnknownMemberType]
 
     async for changes in ait:
         on_changed(changes)
@@ -169,7 +169,7 @@ async def async_progress(
     *columns: ProgressColumn | str,
     progress: Progress | None = None,
     description: str = "",
-    **kwargs,
+    **kwargs: Any,
 ) -> int:
     """Execute a function with progress monitoring and display updates.
 

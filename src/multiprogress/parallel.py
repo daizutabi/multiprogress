@@ -10,6 +10,8 @@ from rich.progress import Progress as Super
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+# pyright: reportMissingTypeStubs=false
+
 
 # https://github.com/jonghwanhyeon/joblib-progress/blob/main/joblib_progress/__init__.py
 class Progress(Super):
@@ -23,11 +25,11 @@ class Progress(Super):
         def _update(parallel: Parallel) -> None:
             update(self, parallel)
 
-        Parallel.print_progress = _update  # type: ignore
+        Parallel.print_progress = _update  # pyright: ignore[reportAttributeAccessIssue]
 
     def stop(self) -> None:
         if self._print_progress:
-            Parallel.print_progress = self._print_progress  # type: ignore
+            Parallel.print_progress = self._print_progress  # pyright: ignore[reportAttributeAccessIssue]
 
         super().stop()
 
@@ -40,5 +42,5 @@ def update(progress: Progress, parallel: Parallel) -> None:
 
     progress.update(task_id, completed=parallel.n_completed_tasks, refresh=True)
 
-    if progress._print_progress:
-        progress._print_progress(parallel)
+    if progress._print_progress:  # pyright: ignore[reportPrivateUsage]
+        progress._print_progress(parallel)  # pyright: ignore[reportPrivateUsage]

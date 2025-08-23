@@ -21,7 +21,7 @@ async def arun(
     on_changed: Callable[[set[tuple[Change, str]]], tuple[int, int]],
     title: str | None = None,
     subtitle: str = "",
-    **kwargs,
+    **kwargs: Any,
 ) -> int:
     async def coro(update: Callable[[int, int], None]) -> int:
         def _on_changed(changes: set[tuple[Change, str]]) -> None:
@@ -46,7 +46,7 @@ async def async_progress(
     progress = ProgressBar(
         title,
         subtitle,
-        total=None,  # type: ignore
+        total=None,  # pyright: ignore[reportArgumentType]
         show_rate=show_rate,
         show_eta=show_eta,
     )

@@ -61,8 +61,10 @@ ignore = [
 "notebooks/*" = ["ANN", "FBT", "PT028", "S"]
 "notebooks/marimo/*" = ["ALL"]
 
-[tool.pyright]
+[tool.basedpyright]
 include = ["src", "tests"]
-strictDictionaryInference = true
-strictListInference = true
-strictSetInference = true
+reportAny = false
+reportExplicitAny = false
+reportIncompatibleMethodOverride = false
+reportImplicitOverride = false
+reportUnusedCallResult = false
